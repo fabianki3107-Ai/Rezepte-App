@@ -1,5 +1,5 @@
 import Testing
-@testable import RezepteApp
+@testable import Portio
 
 @Suite("RecipeTextParser")
 struct RecipeTextParserTests {

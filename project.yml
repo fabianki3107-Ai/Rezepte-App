@@ -1,9 +1,9 @@
 # XcodeGen-Spezifikation. Projekt erzeugen mit:
 #   brew install xcodegen && xcodegen generate
-# Danach RezepteApp.xcodeproj in Xcode 16+ öffnen.
-name: RezepteApp
+# Danach Portio.xcodeproj in Xcode 16+ öffnen.
+name: Portio
 options:
-  bundleIdPrefix: de.fabian.rezepte
+  bundleIdPrefix: io.github.fabianki3107.portio
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "16.0"
@@ -18,15 +18,15 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     CODE_SIGN_STYLE: Automatic
 targets:
-  RezepteApp:
+  Portio:
     type: application
     platform: iOS
     sources:
-      - path: RezepteApp
+      - path: Portio
     info:
-      path: RezepteApp/Resources/Info.plist
+      path: Portio/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Rezepte
+        CFBundleDisplayName: Portio
         CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
@@ -38,36 +38,36 @@ targets:
         NSHealthShareUsageDescription: "Die App liest keine Gesundheitsdaten; die Berechtigung dient nur dem Schreiben von Ernährungsdaten."
         ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
-          - CFBundleURLName: de.fabian.rezepte
-            CFBundleURLSchemes: [rezepte]
+          - CFBundleURLName: io.github.fabianki3107.portio
+            CFBundleURLSchemes: [portio]
     entitlements:
-      path: RezepteApp/Resources/RezepteApp.entitlements
+      path: Portio/Resources/Portio.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.de.fabian.rezepte
+          - group.io.github.fabianki3107.portio
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
     dependencies:
-      - target: RezepteShareExtension
+      - target: PortioShareExtension
         embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: de.fabian.rezepte.app
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.portio
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-  RezepteShareExtension:
+  PortioShareExtension:
     type: app-extension
     platform: iOS
     sources:
-      - path: RezepteShareExtension
-      - path: RezepteApp/Import/Inbox/ImportInboxItem.swift
-      - path: RezepteApp/Import/Instagram/InstagramLinkParser.swift
-      - path: RezepteApp/Import/Instagram/SocialLinkParser.swift
-      - path: RezepteApp/Extensions/String+Parsing.swift
+      - path: PortioShareExtension
+      - path: Portio/Import/Inbox/ImportInboxItem.swift
+      - path: Portio/Import/Instagram/InstagramLinkParser.swift
+      - path: Portio/Import/Instagram/SocialLinkParser.swift
+      - path: Portio/Extensions/String+Parsing.swift
     info:
-      path: RezepteShareExtension/Info.plist
+      path: PortioShareExtension/Info.plist
       properties:
-        CFBundleDisplayName: In Rezepte sichern
+        CFBundleDisplayName: In Portio sichern
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -77,32 +77,32 @@ targets:
               NSExtensionActivationSupportsText: true
               NSExtensionActivationSupportsImageWithMaxCount: 1
     entitlements:
-      path: RezepteShareExtension/RezepteShareExtension.entitlements
+      path: PortioShareExtension/PortioShareExtension.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.de.fabian.rezepte
+          - group.io.github.fabianki3107.portio
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: de.fabian.rezepte.app.share
-  RezepteAppTests:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.portio.share
+  PortioTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: RezepteAppTests
+      - path: PortioTests
     dependencies:
-      - target: RezepteApp
+      - target: Portio
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: de.fabian.rezepte.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.portio.tests
 schemes:
-  RezepteApp:
+  Portio:
     build:
       targets:
-        RezepteApp: all
-        RezepteAppTests: [test]
+        Portio: all
+        PortioTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - RezepteAppTests
+        - PortioTests

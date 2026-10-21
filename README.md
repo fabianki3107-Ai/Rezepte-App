@@ -1,4 +1,4 @@
-# Rezepte – Local-First Rezept-Import & Kalorien-Tracker für iOS
+# Portio – Local-First Rezept-Import & Kalorien-Tracker für iOS
 
 Eine blitzschnelle, komplett offline arbeitende 2-in-1-App in SwiftUI + SwiftData:
 Rezepte werden per **Screenshot/Foto (Apple Vision OCR)**, **Instagram-/TikTok-Link** oder Text importiert,
@@ -20,7 +20,7 @@ optional in **Apple Health** geschrieben. Gekocht wird über einen ablenkungsfre
 | Kalorien-Tagebuch | `NutritionLogService`: 1-Tap-Log aus dem Rezept, Portionen anpassen, `DailyLog`/`LogEntry` mit Snapshot |
 | Dashboard | `DashboardView`: Kalorienring (`SectorMark`), Makro-Balken, 7-Tage-Chart, heutige Einträge |
 | Apple Health | `HealthKitManager`: Energie + Makros als `HKCorrelation(.food)`, Update/Löschen über Sync-Identifier |
-| Share-Extension | Link, Text oder Bild aus jeder App „In Rezepte sichern“; Übergabe über App-Group-Inbox |
+| Share-Extension | Link, Text oder Bild aus jeder App „In Portio sichern“; Übergabe über App-Group-Inbox |
 | Parser | `RecipeTextParser` erkennt Titel, Portionen, Zeiten, Zutaten-Gruppen, Schritte, Timer, Temperaturen, Tags |
 | Review | `ImportReviewView`: alle Felder editierbar, Warnungen, OCR-Konfidenz-Badge, Originaltext einsehbar |
 | Bibliothek | `@Query`-Suche über Titel, Zutaten, Tags; Sortierung; Favoriten; Swipe-Aktionen |
@@ -36,25 +36,25 @@ Das Repository enthält Quellcode und eine [XcodeGen](https://github.com/yonasko
 ```bash
 brew install xcodegen
 xcodegen generate
-open RezepteApp.xcodeproj
+open Portio.xcodeproj
 ```
 
 Danach in Xcode:
 
-1. Unter *Signing & Capabilities* für **RezepteApp** und **RezepteShareExtension** dein Team wählen.
-2. Die App Group `group.de.fabian.rezepte` (siehe `ImportInbox.appGroupIdentifier`) in beiden Targets aktivieren,
+1. Unter *Signing & Capabilities* für **Portio** und **PortioShareExtension** dein Team wählen.
+2. Die App Group `group.io.github.fabianki3107.portio` (siehe `ImportInbox.appGroupIdentifier`) in beiden Targets aktivieren,
    oder den Identifier in `project.yml` und `ImportInboxItem.swift` an deine Team-ID anpassen.
    Die HealthKit-Capability ist in `project.yml` hinterlegt; sie braucht ein bezahltes Developer-Team.
-3. Schema **RezepteApp** auf einem Gerät oder Simulator starten (⌘R), Tests mit ⌘U.
+3. Schema **Portio** auf einem Gerät oder Simulator starten (⌘R), Tests mit ⌘U.
 
-Alternative ohne XcodeGen: Neues iOS-App-Projekt „RezepteApp“ (SwiftUI, SwiftData) anlegen, den Ordner `RezepteApp/`
-als Gruppe hinzufügen, Share-Extension-Target anlegen und `RezepteShareExtension/` plus
+Alternative ohne XcodeGen: Neues iOS-App-Projekt „Portio“ (SwiftUI, SwiftData) anlegen, den Ordner `Portio/`
+als Gruppe hinzufügen, Share-Extension-Target anlegen und `PortioShareExtension/` plus
 `ImportInboxItem.swift` und `InstagramLinkParser.swift` darin einbinden. Die benötigten Info.plist-Schlüssel stehen in `project.yml`.
 
 ## Ordnerstruktur
 
 ```
-RezepteApp/
+Portio/
 ├── App/            Einstieg, Tab-Navigation, Design-Tokens (AppTheme)
 ├── Models/         SwiftData-Modelle (RecipeItem, Ingredient, CookingStep, Tag, DailyLog, LogEntry), Einheiten, Skalierer
 │   └── Nutrition/  NutritionFacts, Macro, NutritionGoals, NutritionSource
@@ -75,8 +75,8 @@ RezepteApp/
 ├── Services/       RecipeRepository, NutritionLogService, HealthKitManager, ImageProcessing, TimerNotificationService, AppSettings
 ├── Extensions/     Regex-/String-Hilfen
 └── Resources/      Assets (AccentColor = systemBlue)
-RezepteShareExtension/  ShareViewController
-RezepteAppTests/        Swift-Testing-Suites für Parser, Nährwert-Schätzung, Formatierung, Instagram-/TikTok-Links
+PortioShareExtension/  ShareViewController
+PortioTests/        Swift-Testing-Suites für Parser, Nährwert-Schätzung, Formatierung, Instagram-/TikTok-Links
 ```
 
 ## Datenschutz-Modell

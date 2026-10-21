@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import RezepteApp
+@testable import Portio
 
 @Suite("TikTokLinkParser & SocialLinkParser")
 struct SocialLinkParserTests {

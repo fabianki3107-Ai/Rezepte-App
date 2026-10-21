@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import RezepteApp
+@testable import Portio
 
 @Suite("QuantityFormatter & ServingsScaler")
 struct QuantityFormatterTests {

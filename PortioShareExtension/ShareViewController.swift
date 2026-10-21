@@ -102,7 +102,7 @@ final class ShareViewController: UIViewController {
     }
 
     private func finish(success: Bool, message: String) {
-        statusLabel.text = success ? "\(message)\nÖffne „Rezepte“, um den Import zu prüfen." : message
+        statusLabel.text = success ? "\(message)\nÖffne „Portio“, um den Import zu prüfen." : message
         iconView.image = UIImage(systemName: success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
         iconView.tintColor = success ? .systemMint : .systemOrange
         UINotificationFeedbackGenerator().notificationOccurred(success ? .success : .error)
@@ -111,7 +111,7 @@ final class ShareViewController: UIViewController {
             if success {
                 self?.extensionContext?.completeRequest(returningItems: nil)
             } else {
-                self?.extensionContext?.cancelRequest(withError: NSError(domain: "de.fabian.rezepte.share", code: 1))
+                self?.extensionContext?.cancelRequest(withError: NSError(domain: "io.github.fabianki3107.portio.share", code: 1))
             }
         }
     }
