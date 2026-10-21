@@ -110,7 +110,7 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    ShareLink(item: file.url, preview: SharePreview("Portio-Export", image: Image(systemName: "doc.text"))) {
+                    ShareLink(item: file.url, preview: SharePreview("Kochlog-Export", image: Image(systemName: "doc.text"))) {
                         Label("Datei sichern oder teilen", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 48)
@@ -194,7 +194,7 @@ struct SettingsView: View {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Portio-\(formatter.string(from: .now)).json")
+                .appendingPathComponent("Kochlog-\(formatter.string(from: .now)).json")
             try data.write(to: url, options: .atomic)
             exportFile = ExportFile(url: url)
         } catch {

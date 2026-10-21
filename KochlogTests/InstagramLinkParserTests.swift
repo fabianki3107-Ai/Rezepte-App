@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Portio
+@testable import Kochlog
 
 @Suite("InstagramLinkParser")
 struct InstagramLinkParserTests {

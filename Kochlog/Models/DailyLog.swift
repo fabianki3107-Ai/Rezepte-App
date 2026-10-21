@@ -114,7 +114,7 @@ final class LogEntry {
     }
 
     /// Eindeutiger Schlüssel für `HKMetadataKeySyncIdentifier`.
-    var healthKitSyncIdentifier: String { "io.github.fabianki3107.portio.log.\(id.uuidString)" }
+    var healthKitSyncIdentifier: String { "io.github.fabianki3107.kochlog.log.\(id.uuidString)" }
 
     var displayTitle: String { recipe?.title ?? recipeTitle }
 }

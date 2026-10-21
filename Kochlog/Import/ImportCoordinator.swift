@@ -122,13 +122,13 @@ final class ImportCoordinator {
 
     // MARK: - Externe Einstiege
 
-    /// `portio://import?url=…` oder `portio://import?text=…` sowie direkte Instagram-/TikTok-URLs.
+    /// `kochlog://import?url=…` oder `kochlog://import?text=…` sowie direkte Instagram-/TikTok-URLs.
     func handle(incomingURL url: URL) {
         if SocialLinkParser.isSupportedURL(url) {
             Task { await importSocialLink(url.absoluteString) }
             return
         }
-        guard url.scheme == "portio", let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+        guard url.scheme == "kochlog", let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
         let items = components.queryItems ?? []
         if let link = items.first(where: { $0.name == "url" })?.value, !link.isEmpty {
             Task { await importSocialLink(link) }

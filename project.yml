@@ -1,9 +1,9 @@
 # XcodeGen-Spezifikation. Projekt erzeugen mit:
 #   brew install xcodegen && xcodegen generate
-# Danach Portio.xcodeproj in Xcode 16+ öffnen.
-name: Portio
+# Danach Kochlog.xcodeproj in Xcode 16+ öffnen.
+name: Kochlog
 options:
-  bundleIdPrefix: io.github.fabianki3107.portio
+  bundleIdPrefix: io.github.fabianki3107.kochlog
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "16.0"
@@ -18,15 +18,15 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     CODE_SIGN_STYLE: Automatic
 targets:
-  Portio:
+  Kochlog:
     type: application
     platform: iOS
     sources:
-      - path: Portio
+      - path: Kochlog
     info:
-      path: Portio/Resources/Info.plist
+      path: Kochlog/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Portio
+        CFBundleDisplayName: Kochlog
         CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
@@ -38,36 +38,36 @@ targets:
         NSHealthShareUsageDescription: "Die App liest keine Gesundheitsdaten; die Berechtigung dient nur dem Schreiben von Ernährungsdaten."
         ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
-          - CFBundleURLName: io.github.fabianki3107.portio
-            CFBundleURLSchemes: [portio]
+          - CFBundleURLName: io.github.fabianki3107.kochlog
+            CFBundleURLSchemes: [kochlog]
     entitlements:
-      path: Portio/Resources/Portio.entitlements
+      path: Kochlog/Resources/Kochlog.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.io.github.fabianki3107.portio
+          - group.io.github.fabianki3107.kochlog
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
     dependencies:
-      - target: PortioShareExtension
+      - target: KochlogShareExtension
         embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.portio
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.kochlog
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-  PortioShareExtension:
+  KochlogShareExtension:
     type: app-extension
     platform: iOS
     sources:
-      - path: PortioShareExtension
-      - path: Portio/Import/Inbox/ImportInboxItem.swift
-      - path: Portio/Import/Instagram/InstagramLinkParser.swift
-      - path: Portio/Import/Instagram/SocialLinkParser.swift
-      - path: Portio/Extensions/String+Parsing.swift
+      - path: KochlogShareExtension
+      - path: Kochlog/Import/Inbox/ImportInboxItem.swift
+      - path: Kochlog/Import/Instagram/InstagramLinkParser.swift
+      - path: Kochlog/Import/Instagram/SocialLinkParser.swift
+      - path: Kochlog/Extensions/String+Parsing.swift
     info:
-      path: PortioShareExtension/Info.plist
+      path: KochlogShareExtension/Info.plist
       properties:
-        CFBundleDisplayName: In Portio sichern
+        CFBundleDisplayName: In Kochlog sichern
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -77,32 +77,32 @@ targets:
               NSExtensionActivationSupportsText: true
               NSExtensionActivationSupportsImageWithMaxCount: 1
     entitlements:
-      path: PortioShareExtension/PortioShareExtension.entitlements
+      path: KochlogShareExtension/KochlogShareExtension.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.io.github.fabianki3107.portio
+          - group.io.github.fabianki3107.kochlog
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.portio.share
-  PortioTests:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.kochlog.share
+  KochlogTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: PortioTests
+      - path: KochlogTests
     dependencies:
-      - target: Portio
+      - target: Kochlog
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.portio.tests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fabianki3107.kochlog.tests
 schemes:
-  Portio:
+  Kochlog:
     build:
       targets:
-        Portio: all
-        PortioTests: [test]
+        Kochlog: all
+        KochlogTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - PortioTests
+        - KochlogTests

@@ -1,5 +1,5 @@
 import Testing
-@testable import Portio
+@testable import Kochlog
 
 @Suite("IngredientLineParser")
 struct IngredientLineParserTests {

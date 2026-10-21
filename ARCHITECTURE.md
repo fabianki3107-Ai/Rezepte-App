@@ -102,7 +102,7 @@ Text/Share      ─► (direkt)
 - **Metadaten:** Portionen („für 4 Personen“, „ergibt 12 Stück“, „Serves 6“), Zeiten („Zubereitungszeit: 15 Min“,
   „Backzeit: 1,5 Std“), Tags aus Hashtags minus Generika.
 
-Alle Heuristiken sind in `PortioTests` abgedeckt; Erweiterungen sollten mit einem Beispiel dort starten.
+Alle Heuristiken sind in `KochlogTests` abgedeckt; Erweiterungen sollten mit einem Beispiel dort starten.
 
 ### Instagram-/TikTok-Link
 

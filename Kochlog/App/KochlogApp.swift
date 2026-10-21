@@ -6,7 +6,7 @@ import SwiftData
 /// Der `ModelContainer` wird bewusst mit `cloudKitDatabase: .none` erzeugt:
 /// Alle Daten bleiben ausschließlich auf dem Gerät (Local-First, keine Cloud).
 @main
-struct PortioApp: App {
+struct KochlogApp: App {
     private let container: ModelContainer
     @State private var importCoordinator: ImportCoordinator
     @State private var inboxService: ImportInboxService
@@ -52,7 +52,7 @@ struct PortioApp: App {
     private static func makeContainer() throws -> ModelContainer {
         let schema = Schema(RecipeSchemaV1.models)
         let configuration = ModelConfiguration(
-            "PortioStore",
+            "KochlogStore",
             schema: schema,
             isStoredInMemoryOnly: false,
             allowsSave: true,
