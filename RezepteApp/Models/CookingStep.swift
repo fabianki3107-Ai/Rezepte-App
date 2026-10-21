@@ -11,7 +11,7 @@ final class CookingStep {
     var durationSeconds: Int?
     /// Erkannte Temperatur ("bei 180 °C backen").
     var temperatureCelsius: Int?
-    var recipe: Recipe?
+    var recipe: RecipeItem?
 
     init(
         id: UUID = UUID(),

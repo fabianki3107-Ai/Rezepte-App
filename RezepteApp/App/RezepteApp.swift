@@ -10,6 +10,7 @@ struct RezepteApp: App {
     private let container: ModelContainer
     @State private var importCoordinator: ImportCoordinator
     @State private var inboxService: ImportInboxService
+    @State private var nutritionLog: NutritionLogService
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -23,6 +24,7 @@ struct RezepteApp: App {
         let repository = RecipeRepository(modelContainer: container)
         _importCoordinator = State(initialValue: ImportCoordinator(repository: repository))
         _inboxService = State(initialValue: ImportInboxService())
+        _nutritionLog = State(initialValue: NutritionLogService(modelContainer: container))
     }
 
     var body: some Scene {
@@ -30,6 +32,7 @@ struct RezepteApp: App {
             RootTabView()
                 .environment(importCoordinator)
                 .environment(inboxService)
+                .environment(nutritionLog)
                 .tint(AppTheme.accent)
                 .onOpenURL { url in
                     importCoordinator.handle(incomingURL: url)
@@ -62,10 +65,12 @@ struct RezepteApp: App {
 /// Zentrale Schema-Definition, damit App, Tests und Previews dieselbe Modellliste nutzen.
 enum RecipeSchemaV1 {
     static let models: [any PersistentModel.Type] = [
-        Recipe.self,
+        RecipeItem.self,
         Ingredient.self,
         CookingStep.self,
-        Tag.self
+        Tag.self,
+        DailyLog.self,
+        LogEntry.self
     ]
 
     /// In-Memory-Container für Previews und Tests.
@@ -77,7 +82,7 @@ enum RecipeSchemaV1 {
         let container = try! ModelContainer(for: schema, configurations: [config])
         if seeded {
             let context = container.mainContext
-            for recipe in Recipe.sampleRecipes() {
+            for recipe in RecipeItem.sampleRecipes() {
                 context.insert(recipe)
             }
             try? context.save()

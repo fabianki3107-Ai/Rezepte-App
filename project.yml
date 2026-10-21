@@ -34,6 +34,8 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSCameraUsageDescription: "Die Kamera wird genutzt, um Rezepte aus Kochbüchern oder Zetteln abzufotografieren. Die Bilder bleiben auf deinem Gerät."
         NSPhotoLibraryUsageDescription: "Wähle Screenshots oder Fotos aus, um Rezepte lokal zu importieren."
+        NSHealthUpdateUsageDescription: "Geloggte Mahlzeiten (Kalorien, Eiweiß, Kohlenhydrate, Fett) werden lokal in Apple Health eingetragen."
+        NSHealthShareUsageDescription: "Die App liest keine Gesundheitsdaten; die Berechtigung dient nur dem Schreiben von Ernährungsdaten."
         ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleURLName: de.fabian.rezepte
@@ -43,6 +45,8 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.de.fabian.rezepte
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     dependencies:
       - target: RezepteShareExtension
         embed: true
@@ -58,6 +62,7 @@ targets:
       - path: RezepteShareExtension
       - path: RezepteApp/Import/Inbox/ImportInboxItem.swift
       - path: RezepteApp/Import/Instagram/InstagramLinkParser.swift
+      - path: RezepteApp/Import/Instagram/SocialLinkParser.swift
       - path: RezepteApp/Extensions/String+Parsing.swift
     info:
       path: RezepteShareExtension/Info.plist

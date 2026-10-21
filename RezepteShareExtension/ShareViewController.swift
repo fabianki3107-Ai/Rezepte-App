@@ -63,12 +63,12 @@ final class ShareViewController: UIViewController {
                let url = try await provider.loadItem(forTypeIdentifier: UTType.url.identifier) as? URL {
                 let text = try? await loadText(from: providers)
                 try ImportInbox.enqueue(ImportInboxItem(kind: .url, url: url, text: text))
-                finish(success: true, message: InstagramLinkParser.isInstagramURL(url) ? "Instagram-Link gesichert" : "Link gesichert")
+                finish(success: true, message: SocialLinkParser.isSupportedURL(url) ? "Rezept-Link gesichert" : "Link gesichert")
                 return
             }
             if let text = try await loadText(from: providers) {
-                let kind: ImportInboxItem.Kind = InstagramLinkParser.parse(text: text) != nil ? .url : .text
-                let url = InstagramLinkParser.parse(text: text)?.canonicalURL
+                let kind: ImportInboxItem.Kind = SocialLinkParser.parse(text: text) != nil ? .url : .text
+                let url = SocialLinkParser.parse(text: text)?.canonicalURL
                 try ImportInbox.enqueue(ImportInboxItem(kind: kind, url: url, text: text))
                 finish(success: true, message: "Text gesichert")
                 return

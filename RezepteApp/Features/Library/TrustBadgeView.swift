@@ -12,7 +12,7 @@ struct TrustBadgeView: View {
     let style: Style
     var compact = false
 
-    init(recipe: Recipe, compact: Bool = false) {
+    init(recipe: RecipeItem, compact: Bool = false) {
         self.compact = compact
         self.style = Self.style(for: recipe)
     }
@@ -56,7 +56,7 @@ struct TrustBadgeView: View {
         }
     }
 
-    static func style(for recipe: Recipe) -> Style {
+    static func style(for recipe: RecipeItem) -> Style {
         switch recipe.verification {
         case .cooked:
             return .trusted("Gekocht", systemImage: "checkmark.seal.fill")
@@ -82,9 +82,9 @@ struct OfflineBadgeView: View {
 
 #Preview {
     VStack(spacing: 12) {
-        TrustBadgeView(recipe: Recipe.sampleShakshuka())
-        TrustBadgeView(recipe: Recipe.samplePancakes())
-        TrustBadgeView(recipe: Recipe(title: "Manuell"))
+        TrustBadgeView(recipe: RecipeItem.sampleShakshuka())
+        TrustBadgeView(recipe: RecipeItem.samplePancakes())
+        TrustBadgeView(recipe: RecipeItem(title: "Manuell"))
         OfflineBadgeView()
     }
     .padding()

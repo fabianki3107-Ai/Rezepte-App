@@ -1,7 +1,7 @@
 import Foundation
 
-/// Metadaten eines Instagram-Beitrags aus dessen Open-Graph-Tags.
-struct InstagramPostMetadata: Hashable {
+/// Metadaten eines Beitrags aus dessen Open-Graph-Tags.
+struct SocialPostMetadata: Hashable {
     var caption: String?
     var author: String?
     var imageURL: URL?
@@ -9,7 +9,10 @@ struct InstagramPostMetadata: Hashable {
     var hasCaption: Bool { !(caption ?? "").isEmpty }
 }
 
-enum InstagramFetchError: LocalizedError {
+/// Alter Name bleibt für Instagram-spezifischen Code und Tests erhalten.
+typealias InstagramPostMetadata = SocialPostMetadata
+
+enum SocialFetchError: LocalizedError {
     case offline
     case blocked
     case noCaption
@@ -17,7 +20,7 @@ enum InstagramFetchError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .offline: return "Keine Internetverbindung. Du kannst den Beitragstext auch einfügen oder einen Screenshot importieren."
-        case .blocked: return "Instagram hat die Vorschau nicht herausgegeben. Importiere stattdessen einen Screenshot."
+        case .blocked: return "Die Plattform hat die Vorschau nicht herausgegeben. Importiere stattdessen einen Screenshot."
         case .noCaption: return "Der Beitrag enthält keinen lesbaren Text."
         }
     }
@@ -25,11 +28,11 @@ enum InstagramFetchError: LocalizedError {
 
 /// Lädt die öffentliche Beitragsseite **direkt vom Gerät** und liest die Open-Graph-Metadaten.
 ///
-/// Es gibt keinen Zwischenserver: Die Anfrage geht an instagram.com, so wie beim Öffnen im Browser.
+/// Es gibt keinen Zwischenserver: Die Anfrage geht an instagram.com bzw. tiktok.com, so wie beim Öffnen im Browser.
 /// Die Session ist `ephemeral` (keine Cookies, kein Cache). Schlägt der Abruf fehl – etwa wegen
 /// Login-Wall – fällt die App auf Screenshot-OCR oder manuelles Einfügen zurück.
-actor InstagramCaptionFetcher {
-    static let shared = InstagramCaptionFetcher()
+actor SocialCaptionFetcher {
+    static let shared = SocialCaptionFetcher()
 
     private let session: URLSession
 
@@ -48,7 +51,7 @@ actor InstagramCaptionFetcher {
         }
     }
 
-    func fetchMetadata(for reference: InstagramPostReference) async throws -> InstagramPostMetadata {
+    func fetchMetadata(for reference: SocialPostReference) async throws -> SocialPostMetadata {
         var request = URLRequest(url: reference.canonicalURL)
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
@@ -56,16 +59,20 @@ actor InstagramCaptionFetcher {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError where error.code == .notConnectedToInternet || error.code == .networkConnectionLost {
-            throw InstagramFetchError.offline
+            throw SocialFetchError.offline
         }
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
               let html = String(data: data, encoding: .utf8) else {
-            throw InstagramFetchError.blocked
+            throw SocialFetchError.blocked
         }
 
-        let metadata = OpenGraphParser.instagramMetadata(fromHTML: html)
-        guard metadata.hasCaption else { throw InstagramFetchError.noCaption }
+        let metadata: SocialPostMetadata
+        switch reference.platform {
+        case .instagram: metadata = OpenGraphParser.instagramMetadata(fromHTML: html)
+        case .tiktok: metadata = OpenGraphParser.tiktokMetadata(fromHTML: html)
+        }
+        guard metadata.hasCaption else { throw SocialFetchError.noCaption }
         return metadata
     }
 
@@ -95,7 +102,7 @@ enum OpenGraphParser {
     /// Instagram liefert z. B.
     /// og:title: `Name on Instagram: "Caption…"`
     /// og:description: `1,234 likes, 56 comments - name on March 3, 2024: "Caption…"`
-    static func instagramMetadata(fromHTML html: String) -> InstagramPostMetadata {
+    static func instagramMetadata(fromHTML html: String) -> SocialPostMetadata {
         let og = properties(fromHTML: html)
         let description = og["og:description"] ?? og["description"] ?? ""
         let title = og["og:title"] ?? ""
@@ -112,7 +119,37 @@ enum OpenGraphParser {
             author = "@" + handle
         }
 
-        return InstagramPostMetadata(
+        return SocialPostMetadata(
+            caption: caption?.trimmingCharacters(in: .whitespacesAndNewlines),
+            author: author,
+            imageURL: og["og:image"].flatMap { URL(string: $0) }
+        )
+    }
+
+    /// TikTok liefert z. B.
+    /// og:description: `1234 Likes, 56 Comments. TikTok video from Name (@user): "Caption…"` oder direkt die Caption
+    /// og:title: `Name on TikTok` bzw. die Caption selbst.
+    static func tiktokMetadata(fromHTML html: String) -> SocialPostMetadata {
+        let og = properties(fromHTML: html)
+        let description = og["og:description"] ?? og["description"] ?? ""
+        let title = og["og:title"] ?? ""
+
+        var caption = extractQuotedCaption(from: description)
+        if caption == nil, !description.isEmpty, !description.lowercased().hasPrefix("tiktok - make your day") {
+            caption = description
+        }
+        if caption == nil, !title.isEmpty, !title.lowercased().contains("tiktok") {
+            caption = title
+        }
+
+        var author: String?
+        if let match = description.firstMatch(of: #"\(@([\w.]{2,30})\)"#), let handle = match[1] {
+            author = "@" + handle
+        } else if let match = title.firstMatch(of: #"^(.+?)\s+(?:on|auf)\s+tiktok"#), let name = match[1] {
+            author = name.trimmingCharacters(in: .whitespaces)
+        }
+
+        return SocialPostMetadata(
             caption: caption?.trimmingCharacters(in: .whitespacesAndNewlines),
             author: author,
             imageURL: og["og:image"].flatMap { URL(string: $0) }

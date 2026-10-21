@@ -1,15 +1,18 @@
 import Foundation
 import SwiftData
 
-/// Ein lokal gespeichertes Rezept.
+/// Ein lokal gespeichertes Rezept inklusive geschätzter Nährwerte pro Portion.
 ///
 /// Hinweise zum Schema:
 /// - Enums werden als `String`-Rohwerte gespeichert, damit sie in `#Predicate` nutzbar bleiben.
 /// - Relationen sind in SwiftData ungeordnet; die Reihenfolge wird über `sortIndex` gehalten
 ///   und über `sortedIngredients` / `sortedSteps` bereitgestellt.
+/// - Zutaten sind strukturiert (`Ingredient` mit Menge/Einheit), weil der Portionen-Skalierer und
+///   die Nährwert-Schätzung darauf aufbauen. `ingredientLines` / `instructions` liefern die
+///   einfachen String-Formen.
 /// - Bilder liegen per `.externalStorage` außerhalb der SQLite-Datei, Thumbnails klein im Store.
 @Model
-final class Recipe {
+final class RecipeItem {
     @Attribute(.unique) var id: UUID
     var title: String
     var summary: String?
@@ -31,6 +34,16 @@ final class Recipe {
     var ocrConfidence: Double?
     var verificationRaw: String
 
+    // Nährwerte pro Portion
+    var caloriesPerServing: Int
+    var proteinGrams: Double
+    var carbsGrams: Double
+    var fatGrams: Double
+    /// Verlässlichkeit der Schätzung (0...1). 1.0 bei deklarierten oder manuell gesetzten Werten.
+    var nutritionConfidence: Double
+    var nutritionSourceRaw: String
+    var nutritionUpdatedAt: Date?
+
     @Attribute(.externalStorage) var heroImageData: Data?
     var thumbnailData: Data?
 
@@ -42,6 +55,11 @@ final class Recipe {
 
     @Relationship(inverse: \Tag.recipes)
     var tags: [Tag] = []
+
+    /// Tagebuch-Einträge, die auf dieses Rezept verweisen. Beim Löschen des Rezepts bleiben die
+    /// Einträge mit ihrem Nährwert-Snapshot erhalten (`nullify`).
+    @Relationship(deleteRule: .nullify, inverse: \LogEntry.recipe)
+    var logEntries: [LogEntry] = []
 
     init(
         id: UUID = UUID(),
@@ -55,6 +73,9 @@ final class Recipe {
         sourceAuthor: String? = nil,
         ocrConfidence: Double? = nil,
         verification: VerificationState = .unverified,
+        nutrition: NutritionFacts = .zero,
+        nutritionConfidence: Double = 0,
+        nutritionSource: NutritionSource = .none,
         heroImageData: Data? = nil,
         thumbnailData: Data? = nil,
         isFavorite: Bool = false,
@@ -77,6 +98,13 @@ final class Recipe {
         self.sourceAuthor = sourceAuthor
         self.ocrConfidence = ocrConfidence
         self.verificationRaw = verification.rawValue
+        self.caloriesPerServing = Int(nutrition.calories.rounded())
+        self.proteinGrams = nutrition.protein
+        self.carbsGrams = nutrition.carbs
+        self.fatGrams = nutrition.fat
+        self.nutritionConfidence = nutritionConfidence
+        self.nutritionSourceRaw = nutritionSource.rawValue
+        self.nutritionUpdatedAt = nutritionSource == .none ? nil : createdAt
         self.heroImageData = heroImageData
         self.thumbnailData = thumbnailData
     }
@@ -98,8 +126,47 @@ final class Recipe {
         set { verificationRaw = newValue.rawValue }
     }
 
+    var nutritionSource: NutritionSource {
+        get { NutritionSource(rawValue: nutritionSourceRaw) ?? .none }
+        set { nutritionSourceRaw = newValue.rawValue }
+    }
+
+    /// Nährwerte einer Portion als Werttyp (für Skalierung, Logging, HealthKit).
+    var nutrition: NutritionFacts {
+        get { NutritionFacts(calories: Double(caloriesPerServing), protein: proteinGrams, carbs: carbsGrams, fat: fatGrams) }
+        set {
+            caloriesPerServing = Int(newValue.calories.rounded())
+            proteinGrams = newValue.protein
+            carbsGrams = newValue.carbs
+            fatGrams = newValue.fat
+        }
+    }
+
+    var hasNutrition: Bool { nutritionSource != .none && caloriesPerServing > 0 }
+
+    /// Übernimmt eine Schätzung oder manuelle Eingabe inklusive Herkunft und Konfidenz.
+    func applyNutrition(_ facts: NutritionFacts, confidence: Double, source: NutritionSource, at date: Date = .now) {
+        nutrition = facts.rounded()
+        nutritionConfidence = min(1, max(0, confidence))
+        nutritionSource = source
+        nutritionUpdatedAt = date
+    }
+
     var sortedIngredients: [Ingredient] { ingredients.sorted { $0.sortIndex < $1.sortIndex } }
     var sortedSteps: [CookingStep] { steps.sorted { $0.sortIndex < $1.sortIndex } }
+
+    /// Zutaten als einfache Textzeilen ("250 g Mehl") – z. B. für Export und Teilen.
+    var ingredientLines: [String] {
+        sortedIngredients.map { ingredient in
+            let amount = QuantityFormatter.string(for: ingredient.measure)
+            return [amount, ingredient.name].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+    }
+
+    /// Zubereitung als zusammenhängender Text.
+    var instructions: String {
+        sortedSteps.enumerated().map { "\($0.offset + 1). \($0.element.text)" }.joined(separator: "\n")
+    }
 
     var totalTimeMinutes: Int? {
         switch (prepTimeMinutes, cookTimeMinutes) {
@@ -141,14 +208,6 @@ enum Difficulty: String, Codable, CaseIterable, Identifiable {
         case .hard: return "Anspruchsvoll"
         }
     }
-
-    var symbolName: String {
-        switch self {
-        case .easy: return "1.circle"
-        case .medium: return "2.circle"
-        case .hard: return "3.circle"
-        }
-    }
 }
 
 /// Woher ein Rezept stammt. Rein informativ – es findet kein Sync statt.
@@ -156,6 +215,7 @@ struct ImportSource: Codable, Hashable {
     enum Kind: String, Codable, CaseIterable {
         case manual
         case instagram
+        case tiktok
         case screenshot
         case photo
         case shared
@@ -164,6 +224,7 @@ struct ImportSource: Codable, Hashable {
             switch self {
             case .manual: return "Manuell"
             case .instagram: return "Instagram"
+            case .tiktok: return "TikTok"
             case .screenshot: return "Screenshot"
             case .photo: return "Foto"
             case .shared: return "Geteilt"
@@ -174,6 +235,7 @@ struct ImportSource: Codable, Hashable {
             switch self {
             case .manual: return "pencil"
             case .instagram: return "camera.aperture"
+            case .tiktok: return "music.note"
             case .screenshot: return "rectangle.on.rectangle"
             case .photo: return "camera"
             case .shared: return "square.and.arrow.down"
@@ -186,6 +248,7 @@ struct ImportSource: Codable, Hashable {
 
     static let manual = ImportSource(kind: .manual, url: nil)
     static func instagram(_ url: URL) -> ImportSource { ImportSource(kind: .instagram, url: url) }
+    static func tiktok(_ url: URL) -> ImportSource { ImportSource(kind: .tiktok, url: url) }
     static let screenshot = ImportSource(kind: .screenshot, url: nil)
     static let photo = ImportSource(kind: .photo, url: nil)
 }

@@ -22,6 +22,7 @@ struct ImportReviewView: View {
                 basicsSection
                 ingredientsSection
                 stepsSection
+                nutritionPreviewSection
                 sourceSection
             }
             .scrollDismissesKeyboard(.interactively)
@@ -172,6 +173,39 @@ struct ImportReviewView: View {
             Text("Zubereitung (\(draft.steps.count))")
         } footer: {
             Text("Zeitangaben wie „10 Minuten“ werden im Koch-Modus zu Timern.")
+        }
+    }
+
+    /// Live-Vorschau der lokalen Nährwert-Schätzung – zeigt sofort, was nach dem Speichern geloggt würde.
+    private var nutritionPreviewSection: some View {
+        let estimate = LocalNutritionParser.estimate(draft: draft)
+        return Section {
+            if estimate.isUsable {
+                LabeledContent("Kalorien", value: "\(Int(estimate.perServing.calories)) kcal")
+                LabeledContent("Eiweiß / Kohlenhydrate / Fett", value: "\(Int(estimate.perServing.protein)) · \(Int(estimate.perServing.carbs)) · \(Int(estimate.perServing.fat)) g")
+                HStack {
+                    if estimate.source == .declared {
+                        TrustBadgeView(style: .trusted("Aus dem Rezepttext übernommen", systemImage: "doc.text.magnifyingglass"))
+                    } else if estimate.confidence >= NutritionEstimate.goodConfidenceThreshold {
+                        TrustBadgeView(style: .trusted("Gute Schätzung · \(Int(estimate.confidence * 100)) %", systemImage: "scalemass.fill"))
+                    } else {
+                        TrustBadgeView(style: .review("Grobe Schätzung · \(Int(estimate.confidence * 100)) %", systemImage: "scalemass"))
+                    }
+                }
+                if !estimate.unmatchedNames.isEmpty {
+                    Text("Nicht zugeordnet: \(estimate.unmatchedNames.joined(separator: ", "))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Noch keine Schätzung möglich – Zutaten mit Mengen ergänzen.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Nährwerte pro Portion (lokal geschätzt)")
+        } footer: {
+            Text("Nach dem Speichern kannst du die Werte im Rezept jederzeit korrigieren.")
         }
     }
 

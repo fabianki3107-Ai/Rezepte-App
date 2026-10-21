@@ -6,7 +6,7 @@ import Observation
 @MainActor
 @Observable
 final class CookingSession {
-    let recipe: Recipe
+    let recipe: RecipeItem
     let scaler: ServingsScaler
     let steps: [CookingStep]
 
@@ -20,7 +20,7 @@ final class CookingSession {
     private let settings: AppSettings
 
     init(
-        recipe: Recipe,
+        recipe: RecipeItem,
         scaler: ServingsScaler,
         checkedIngredientIDs: Set<UUID> = [],
         notifications: TimerNotificationService = .shared,

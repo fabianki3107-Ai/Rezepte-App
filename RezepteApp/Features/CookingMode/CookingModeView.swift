@@ -285,7 +285,7 @@ private struct CookingIngredientsSheet: View {
 
 /// Abschluss-Screen mit Mint-Erfolgsmeldung.
 private struct CookingFinishedView: View {
-    let recipe: Recipe
+    let recipe: RecipeItem
     let onDone: () -> Void
     @State private var appeared = false
 
@@ -331,7 +331,7 @@ struct TrailingIconLabelStyle: LabelStyle {
 
 #Preview {
     CookingModeView(
-        session: CookingSession(recipe: Recipe.sampleShakshuka(), scaler: ServingsScaler(baseServings: 2, targetServings: 4)),
+        session: CookingSession(recipe: RecipeItem.sampleShakshuka(), scaler: ServingsScaler(baseServings: 2, targetServings: 4)),
         onFinish: { _ in }
     )
     .modelContainer(RecipeSchemaV1.previewContainer())

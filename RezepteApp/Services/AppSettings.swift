@@ -1,20 +1,24 @@
 import Foundation
 import Observation
 
-/// Nutzer-Einstellungen, in `UserDefaults` gespeichert (lokal, nicht iCloud-synchronisiert).
+/// Nutzer-Einstellungen und Tagesziele, in `UserDefaults` gespeichert (lokal, nicht iCloud-synchronisiert).
 ///
 /// Die Properties lesen/schreiben direkt in `UserDefaults` und melden Änderungen über
-/// `access(keyPath:)` / `withMutation(keyPath:)` an das Observation-System – das ist das
-/// dokumentierte Muster für `@Observable`-Typen mit eigener Speicherung.
+/// `access(keyPath:)` / `withMutation(keyPath:)` an das Observation-System.
 @Observable
 final class AppSettings {
     static let shared = AppSettings()
 
     private enum Key {
-        static let loadInstagramPreview = "settings.loadInstagramPreview"
+        static let loadSocialPreview = "settings.loadSocialPreview"
         static let keepScreenAwake = "settings.keepScreenAwake"
         static let timerNotifications = "settings.timerNotifications"
         static let hapticsEnabled = "settings.hapticsEnabled"
+        static let healthKitSyncEnabled = "settings.healthKitSyncEnabled"
+        static let goalCalories = "goals.calories"
+        static let goalProtein = "goals.protein"
+        static let goalCarbs = "goals.carbs"
+        static let goalFat = "goals.fat"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -22,42 +26,79 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.register(defaults: [
-            Key.loadInstagramPreview: true,
+            Key.loadSocialPreview: true,
             Key.keepScreenAwake: true,
             Key.timerNotifications: true,
-            Key.hapticsEnabled: true
+            Key.hapticsEnabled: true,
+            Key.healthKitSyncEnabled: false,
+            Key.goalCalories: NutritionGoals.default.calories,
+            Key.goalProtein: NutritionGoals.default.protein,
+            Key.goalCarbs: NutritionGoals.default.carbs,
+            Key.goalFat: NutritionGoals.default.fat
         ])
     }
 
-    /// Beitragstext direkt von instagram.com laden (einzige Netzwerkfunktion der App).
-    var loadInstagramPreview: Bool {
-        get { read(\.loadInstagramPreview, Key.loadInstagramPreview) }
-        set { write(\.loadInstagramPreview, Key.loadInstagramPreview, newValue) }
+    // MARK: Import
+
+    /// Beitragsseite (Instagram/TikTok) direkt vom Gerät laden – einzige Netzwerkfunktion der App.
+    var loadSocialPreview: Bool {
+        get { readBool(\.loadSocialPreview, Key.loadSocialPreview) }
+        set { writeBool(\.loadSocialPreview, Key.loadSocialPreview, newValue) }
     }
 
-    /// Bildschirm im Koch-Modus nicht abdunkeln.
+    // MARK: Koch-Modus
+
     var keepScreenAwake: Bool {
-        get { read(\.keepScreenAwake, Key.keepScreenAwake) }
-        set { write(\.keepScreenAwake, Key.keepScreenAwake, newValue) }
+        get { readBool(\.keepScreenAwake, Key.keepScreenAwake) }
+        set { writeBool(\.keepScreenAwake, Key.keepScreenAwake, newValue) }
     }
 
-    /// Lokale Mitteilung, wenn ein Timer abläuft.
     var timerNotifications: Bool {
-        get { read(\.timerNotifications, Key.timerNotifications) }
-        set { write(\.timerNotifications, Key.timerNotifications, newValue) }
+        get { readBool(\.timerNotifications, Key.timerNotifications) }
+        set { writeBool(\.timerNotifications, Key.timerNotifications, newValue) }
     }
 
     var hapticsEnabled: Bool {
-        get { read(\.hapticsEnabled, Key.hapticsEnabled) }
-        set { write(\.hapticsEnabled, Key.hapticsEnabled, newValue) }
+        get { readBool(\.hapticsEnabled, Key.hapticsEnabled) }
+        set { writeBool(\.hapticsEnabled, Key.hapticsEnabled, newValue) }
     }
 
-    private func read(_ keyPath: KeyPath<AppSettings, Bool>, _ key: String) -> Bool {
+    // MARK: Tracking
+
+    /// Geloggte Mahlzeiten zusätzlich in Apple Health schreiben.
+    var healthKitSyncEnabled: Bool {
+        get { readBool(\.healthKitSyncEnabled, Key.healthKitSyncEnabled) }
+        set { writeBool(\.healthKitSyncEnabled, Key.healthKitSyncEnabled, newValue) }
+    }
+
+    var goals: NutritionGoals {
+        get {
+            access(keyPath: \.goals)
+            return NutritionGoals(
+                calories: defaults.integer(forKey: Key.goalCalories),
+                protein: defaults.integer(forKey: Key.goalProtein),
+                carbs: defaults.integer(forKey: Key.goalCarbs),
+                fat: defaults.integer(forKey: Key.goalFat)
+            )
+        }
+        set {
+            withMutation(keyPath: \.goals) {
+                defaults.set(max(800, newValue.calories), forKey: Key.goalCalories)
+                defaults.set(max(10, newValue.protein), forKey: Key.goalProtein)
+                defaults.set(max(10, newValue.carbs), forKey: Key.goalCarbs)
+                defaults.set(max(10, newValue.fat), forKey: Key.goalFat)
+            }
+        }
+    }
+
+    // MARK: Intern
+
+    private func readBool(_ keyPath: KeyPath<AppSettings, Bool>, _ key: String) -> Bool {
         access(keyPath: keyPath)
         return defaults.bool(forKey: key)
     }
 
-    private func write(_ keyPath: KeyPath<AppSettings, Bool>, _ key: String, _ value: Bool) {
+    private func writeBool(_ keyPath: KeyPath<AppSettings, Bool>, _ key: String, _ value: Bool) {
         withMutation(keyPath: keyPath) {
             defaults.set(value, forKey: key)
         }

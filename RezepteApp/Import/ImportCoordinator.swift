@@ -3,7 +3,17 @@ import Observation
 import SwiftData
 import UIKit
 
-/// Orchestriert alle Import-Wege (Foto/Screenshot → OCR, Instagram-Link, Text, Share-Extension)
+extension SocialPostReference {
+    /// Herkunft für das Rezept – im App-Target definiert, weil die Share-Extension `ImportSource` nicht kennt.
+    var source: ImportSource {
+        switch platform {
+        case .instagram: return .instagram(canonicalURL)
+        case .tiktok: return .tiktok(canonicalURL)
+        }
+    }
+}
+
+/// Orchestriert alle Import-Wege (Foto/Screenshot → OCR, Instagram-/TikTok-Link, Text, Share-Extension)
 /// und hält den aktuellen Import-Zustand für die UI.
 @MainActor
 @Observable
@@ -27,13 +37,13 @@ final class ImportCoordinator {
 
     let repository: RecipeRepository
     private let ocr: VisionOCRManager
-    private let captionFetcher: InstagramCaptionFetcher
+    private let captionFetcher: SocialCaptionFetcher
     private let settings: AppSettings
 
     init(
         repository: RecipeRepository,
         ocr: VisionOCRManager = .shared,
-        captionFetcher: InstagramCaptionFetcher = .shared,
+        captionFetcher: SocialCaptionFetcher = .shared,
         settings: AppSettings = .shared
     ) {
         self.repository = repository
@@ -70,25 +80,25 @@ final class ImportCoordinator {
             return
         }
         var draft = RecipeTextParser.parse(trimmed, source: source, sourceAuthor: author, heroImageData: heroImageData)
-        if source.kind == .instagram, draft.sourceAuthor == nil { draft.sourceAuthor = author }
+        if draft.sourceAuthor == nil { draft.sourceAuthor = author }
         phase = .review(draft)
     }
 
-    /// Instagram-Link → Caption direkt von instagram.com (optional) → Parser → Review.
+    /// Instagram-/TikTok-Link → Caption direkt von der Plattform (optional) → Parser → Review.
     /// Ohne Netz oder bei Login-Wall: Review mit leerem Entwurf plus Hinweis, Link bleibt als Quelle erhalten.
-    func importInstagramLink(_ raw: String) async {
-        guard let reference = InstagramLinkParser.parse(text: raw) else {
-            phase = .failed("Das ist kein gültiger Instagram-Link. Unterstützt werden Beiträge, Reels und IGTV.")
+    func importSocialLink(_ raw: String) async {
+        guard let reference = SocialLinkParser.parse(text: raw) else {
+            phase = .failed("Das ist kein gültiger Instagram- oder TikTok-Link. Unterstützt werden Beiträge, Reels und Videos.")
             return
         }
-        let source = ImportSource.instagram(reference.canonicalURL)
+        let source = reference.source
 
-        guard settings.loadInstagramPreview else {
+        guard settings.loadSocialPreview else {
             phase = .review(Self.linkOnlyDraft(source: source, author: reference.username))
             return
         }
 
-        phase = .working("Beitrag wird geladen …")
+        phase = .working("\(reference.platform.title)-Beitrag wird geladen …")
         do {
             let metadata = try await captionFetcher.fetchMetadata(for: reference)
             var heroData: Data?
@@ -112,16 +122,16 @@ final class ImportCoordinator {
 
     // MARK: - Externe Einstiege
 
-    /// `rezepte://import?url=…` oder `rezepte://import?text=…` sowie direkte Instagram-URLs.
+    /// `rezepte://import?url=…` oder `rezepte://import?text=…` sowie direkte Instagram-/TikTok-URLs.
     func handle(incomingURL url: URL) {
-        if InstagramLinkParser.isInstagramURL(url) {
-            Task { await importInstagramLink(url.absoluteString) }
+        if SocialLinkParser.isSupportedURL(url) {
+            Task { await importSocialLink(url.absoluteString) }
             return
         }
         guard url.scheme == "rezepte", let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
         let items = components.queryItems ?? []
         if let link = items.first(where: { $0.name == "url" })?.value, !link.isEmpty {
-            Task { await importInstagramLink(link) }
+            Task { await importSocialLink(link) }
         } else if let text = items.first(where: { $0.name == "text" })?.value, !text.isEmpty {
             importText(text, source: ImportSource(kind: .shared, url: nil))
         }
@@ -132,16 +142,16 @@ final class ImportCoordinator {
         switch item.kind {
         case .url:
             if let url = item.url {
-                if InstagramLinkParser.isInstagramURL(url) {
-                    await importInstagramLink(url.absoluteString)
+                if SocialLinkParser.isSupportedURL(url) {
+                    await importSocialLink(url.absoluteString)
                 } else if let text = item.text {
                     importText(text, source: ImportSource(kind: .shared, url: url))
                 }
             }
         case .text:
             if let text = item.text {
-                if InstagramLinkParser.parse(text: text) != nil, text.wordCount <= 3 {
-                    await importInstagramLink(text)
+                if SocialLinkParser.parse(text: text) != nil, text.wordCount <= 3 {
+                    await importSocialLink(text)
                 } else {
                     importText(text, source: ImportSource(kind: .shared, url: item.url))
                 }
@@ -156,7 +166,7 @@ final class ImportCoordinator {
     // MARK: - Abschluss
 
     @discardableResult
-    func save(_ draft: ParsedRecipeDraft) throws -> Recipe {
+    func save(_ draft: ParsedRecipeDraft) throws -> RecipeItem {
         let recipe = try repository.save(draft: draft)
         phase = .idle
         linkInput = ""

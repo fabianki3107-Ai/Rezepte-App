@@ -1,13 +1,21 @@
 import Foundation
 
 /// Beispieldaten für Previews, UI-Tests und den ersten App-Start.
-extension Recipe {
-    static func sampleRecipes() -> [Recipe] {
-        [sampleShakshuka(), samplePancakes()]
+extension RecipeItem {
+    static func sampleRecipes() -> [RecipeItem] {
+        let recipes = [sampleShakshuka(), samplePancakes()]
+        for recipe in recipes {
+            let estimate = LocalNutritionParser.estimate(
+                ingredients: recipe.sortedIngredients.map(IngredientInput.init),
+                servings: recipe.servings
+            )
+            recipe.applyNutrition(estimate.perServing, confidence: estimate.confidence, source: estimate.source)
+        }
+        return recipes
     }
 
-    static func sampleShakshuka() -> Recipe {
-        let recipe = Recipe(
+    static func sampleShakshuka() -> RecipeItem {
+        let recipe = RecipeItem(
             title: "Shakshuka mit Feta",
             summary: "Würzige Tomaten-Paprika-Pfanne mit pochierten Eiern – in 30 Minuten auf dem Tisch.",
             servings: 2,
@@ -43,8 +51,8 @@ extension Recipe {
         return recipe
     }
 
-    static func samplePancakes() -> Recipe {
-        let recipe = Recipe(
+    static func samplePancakes() -> RecipeItem {
+        let recipe = RecipeItem(
             title: "Fluffige Pancakes",
             summary: "Amerikanische Pancakes mit Buttermilch.",
             servings: 4,

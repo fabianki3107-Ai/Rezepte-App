@@ -3,17 +3,21 @@ import SwiftData
 
 /// Rezept-Detailansicht: Hero-Bild, Metadaten, Portionen-Skalierer, interaktive Zutaten, Schritte.
 struct RecipeDetailView: View {
-    @Bindable var recipe: Recipe
+    @Bindable var recipe: RecipeItem
     @Environment(ImportCoordinator.self) private var importCoordinator
+    @Environment(NutritionLogService.self) private var nutritionLog
     @Environment(\.dismiss) private var dismiss
 
     @State private var scaler: ServingsScaler
+    @State private var showNutritionEditor = false
+    @State private var toast: NutritionLogService.Confirmation?
+    @State private var logError: String?
     @State private var checkedIngredientIDs: Set<UUID> = []
     @State private var showCookingMode = false
     @State private var showDeleteConfirmation = false
     @State private var showRawText = false
 
-    init(recipe: Recipe) {
+    init(recipe: RecipeItem) {
         self.recipe = recipe
         _scaler = State(initialValue: ServingsScaler(baseServings: recipe.servings))
     }
@@ -24,6 +28,11 @@ struct RecipeDetailView: View {
                 heroImage
                 header
                 ServingsScalerView(scaler: $scaler)
+                NutritionCardsView(
+                    recipe: recipe,
+                    onEdit: { showNutritionEditor = true },
+                    onRecalculate: { _ = try? importCoordinator.repository.recalculateNutrition(recipe, overrideManual: true) }
+                )
                 ingredientsSection
                 stepsSection
                 if let notes = recipe.notes, !notes.isEmpty { notesSection(notes) }
@@ -36,7 +45,17 @@ struct RecipeDetailView: View {
         .navigationTitle(recipe.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
-        .safeAreaInset(edge: .bottom) { cookButton }
+        .safeAreaInset(edge: .bottom) { actionBar }
+        .overlay(alignment: .top) { toastView }
+        .sheet(isPresented: $showNutritionEditor) {
+            NutritionEditSheet(recipe: recipe)
+                .presentationDetents([.large])
+        }
+        .alert("Loggen fehlgeschlagen", isPresented: Binding(get: { logError != nil }, set: { if !$0 { logError = nil } })) {
+            Button("OK") { logError = nil }
+        } message: {
+            Text(logError ?? "")
+        }
         .fullScreenCover(isPresented: $showCookingMode) {
             CookingModeView(
                 session: CookingSession(recipe: recipe, scaler: scaler, checkedIngredientIDs: checkedIngredientIDs),
@@ -253,20 +272,79 @@ struct RecipeDetailView: View {
         }
     }
 
-    private var cookButton: some View {
-        Button {
-            showCookingMode = true
-        } label: {
-            Label("Kochen starten", systemImage: "play.fill")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 50)
+    /// Primäraktion: 1-Tap-Log einer Portion. Langes Drücken öffnet weitere Portionsgrößen.
+    private var actionBar: some View {
+        HStack(spacing: AppTheme.Spacing.m) {
+            Menu {
+                ForEach([0.5, 1.0, 1.5, 2.0, 3.0], id: \.self) { portions in
+                    Button {
+                        logToday(servings: portions)
+                    } label: {
+                        Label(
+                            "\(ServingsFormatting.string(portions)) · \(Int(recipe.nutrition.scaled(by: portions).calories.rounded())) kcal",
+                            systemImage: portions == 1 ? "plus.circle.fill" : "plus.circle"
+                        )
+                    }
+                }
+            } label: {
+                Label(recipe.hasNutrition ? "Heute loggen · \(recipe.caloriesPerServing) kcal" : "Heute loggen", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 50)
+            } primaryAction: {
+                logToday(servings: 1)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!recipe.hasNutrition)
+            .accessibilityHint("Trägt eine Portion in das heutige Tagebuch ein. Lange drücken für andere Portionsgrößen.")
+
+            Button {
+                showCookingMode = true
+            } label: {
+                Label("Kochen", systemImage: "play.fill")
+                    .font(.headline)
+                    .frame(minHeight: 50)
+                    .padding(.horizontal, AppTheme.Spacing.s)
+            }
+            .buttonStyle(.bordered)
+            .disabled(recipe.steps.isEmpty)
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(recipe.steps.isEmpty)
         .padding(.horizontal, AppTheme.Spacing.l)
         .padding(.vertical, AppTheme.Spacing.s)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var toastView: some View {
+        if let toast {
+            Label {
+                Text("Geloggt · \(Int(toast.facts.calories)) kcal")
+                    .font(.subheadline.weight(.semibold))
+            } icon: {
+                Image(systemName: "checkmark.circle.fill")
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, AppTheme.Spacing.l)
+            .padding(.vertical, AppTheme.Spacing.m)
+            .background(AppTheme.trust, in: Capsule())
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+            .padding(.top, AppTheme.Spacing.s)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .task(id: toast.id) {
+                try? await Task.sleep(for: .seconds(2.5))
+                withAnimation(.snappy) { self.toast = nil }
+            }
+            .accessibilityAddTraits(.isStaticText)
+        }
+    }
+
+    private func logToday(servings: Double) {
+        do {
+            try nutritionLog.log(recipe, servings: servings)
+            withAnimation(.snappy) { toast = nutritionLog.lastConfirmation }
+        } catch {
+            logError = error.localizedDescription
+        }
     }
 
     @ToolbarContentBuilder
@@ -283,6 +361,11 @@ struct RecipeDetailView: View {
             Menu {
                 ShareLink(item: ShareableRecipeText.make(recipe), preview: SharePreview(recipe.title)) {
                     Label("Als Text teilen", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    showNutritionEditor = true
+                } label: {
+                    Label("Nährwerte bearbeiten", systemImage: "flame")
                 }
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
@@ -309,8 +392,12 @@ struct RecipeDetailView: View {
 /// Erzeugt einen Klartext zum Teilen (Nachrichten, Notizen) – ohne Serverbeteiligung.
 enum ShareableRecipeText {
     @MainActor
-    static func make(_ recipe: Recipe) -> String {
+    static func make(_ recipe: RecipeItem) -> String {
         var lines = [recipe.title, ""]
+        if recipe.hasNutrition {
+            lines.append("Pro Portion: \(recipe.caloriesPerServing) kcal · \(Int(recipe.proteinGrams)) g Eiweiß · \(Int(recipe.carbsGrams)) g Kohlenhydrate · \(Int(recipe.fatGrams)) g Fett")
+            lines.append("")
+        }
         lines.append("Zutaten (\(recipe.servings) Portionen):")
         for ingredient in recipe.sortedIngredients {
             let amount = QuantityFormatter.string(for: ingredient.measure)
@@ -356,8 +443,9 @@ enum DurationFormatting {
 
 #Preview {
     NavigationStack {
-        RecipeDetailView(recipe: Recipe.sampleShakshuka())
+        RecipeDetailView(recipe: RecipeItem.sampleShakshuka())
     }
     .environment(ImportCoordinator.preview)
+    .environment(NutritionLogService.preview)
     .modelContainer(RecipeSchemaV1.previewContainer())
 }

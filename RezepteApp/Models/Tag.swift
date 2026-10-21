@@ -5,7 +5,7 @@ import SwiftData
 @Model
 final class Tag {
     @Attribute(.unique) var name: String
-    var recipes: [Recipe] = []
+    var recipes: [RecipeItem] = []
 
     init(name: String) {
         self.name = Tag.normalized(name)

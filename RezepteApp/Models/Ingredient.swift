@@ -19,7 +19,7 @@ final class Ingredient {
     /// Zutaten wie Salz oder Öl zum Braten werden nicht mitskaliert.
     var isScalable: Bool
     var isOptional: Bool
-    var recipe: Recipe?
+    var recipe: RecipeItem?
 
     init(
         id: UUID = UUID(),

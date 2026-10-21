@@ -3,14 +3,18 @@ import SwiftUI
 /// Hauptnavigation nach HIG: Tab Bar mit maximal fünf klar benannten Bereichen.
 struct RootTabView: View {
     @Environment(ImportCoordinator.self) private var importCoordinator
-    @State private var selection: Tab = .library
+    @State private var selection: Tab = .today
 
     enum Tab: Hashable {
-        case library, importHub, settings
+        case today, library, importHub, settings
     }
 
     var body: some View {
         TabView(selection: $selection) {
+            DashboardView()
+                .tabItem { Label("Heute", systemImage: "chart.pie") }
+                .tag(Tab.today)
+
             LibraryView()
                 .tabItem { Label("Bibliothek", systemImage: "book.closed") }
                 .tag(Tab.library)
@@ -34,5 +38,6 @@ struct RootTabView: View {
     RootTabView()
         .environment(ImportCoordinator.preview)
         .environment(ImportInboxService())
+        .environment(NutritionLogService.preview)
         .modelContainer(RecipeSchemaV1.previewContainer())
 }

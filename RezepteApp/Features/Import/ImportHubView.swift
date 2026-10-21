@@ -95,7 +95,7 @@ struct ImportHubView: View {
             }
 
             Button { showLinkSheet = true } label: {
-                ImportOptionLabel(title: "Instagram-Link", subtitle: "Beitrag oder Reel einfügen, Caption wird ausgelesen", systemImage: "link")
+                ImportOptionLabel(title: "Instagram- oder TikTok-Link", subtitle: "Beitrag, Reel oder Video einfügen – Caption wird ausgelesen", systemImage: "link")
             }
             .buttonStyle(.plain)
 
@@ -173,13 +173,13 @@ private struct InstagramLinkSheet: View {
     @State private var pasteFailed = false
     @FocusState private var focused: Bool
 
-    private var isValid: Bool { InstagramLinkParser.parse(text: input) != nil }
+    private var isValid: Bool { SocialLinkParser.parse(text: input) != nil }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("https://www.instagram.com/p/…", text: $input)
+                    TextField("https://www.instagram.com/… oder https://www.tiktok.com/…", text: $input)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -187,14 +187,14 @@ private struct InstagramLinkSheet: View {
                         .submitLabel(.go)
                         .onSubmit(start)
                 } footer: {
-                    Text("Die Beitragsseite wird direkt von instagram.com geladen – ohne Zwischenserver. Klappt das nicht (z. B. Login-Wand), kannst du den Text einfügen oder einen Screenshot importieren.")
+                    Text("Die Beitragsseite wird direkt von instagram.com bzw. tiktok.com geladen – ohne Zwischenserver. Klappt das nicht (z. B. Login-Wand), kannst du den Text einfügen oder einen Screenshot importieren.")
                 }
 
                 if UIPasteboard.general.hasURLs || UIPasteboard.general.hasStrings {
                     Section {
                         Button {
                             // Lesezugriff erst auf Nutzeraktion – zeigt den System-Hinweis nur einmal und bewusst.
-                            if let clipboard = UIPasteboard.general.string, InstagramLinkParser.parse(text: clipboard) != nil {
+                            if let clipboard = UIPasteboard.general.string, SocialLinkParser.parse(text: clipboard) != nil {
                                 input = clipboard
                             } else {
                                 pasteFailed = true
@@ -203,11 +203,11 @@ private struct InstagramLinkSheet: View {
                             Label("Link aus Zwischenablage einfügen", systemImage: "doc.on.clipboard")
                         }
                     } footer: {
-                        if pasteFailed { Text("In der Zwischenablage ist kein Instagram-Link.") }
+                        if pasteFailed { Text("In der Zwischenablage ist kein Instagram- oder TikTok-Link.") }
                     }
                 }
             }
-            .navigationTitle("Instagram-Link")
+            .navigationTitle("Link importieren")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -223,7 +223,7 @@ private struct InstagramLinkSheet: View {
         guard isValid else { return }
         let link = input
         dismiss()
-        Task { await coordinator.importInstagramLink(link) }
+        Task { await coordinator.importSocialLink(link) }
     }
 }
 

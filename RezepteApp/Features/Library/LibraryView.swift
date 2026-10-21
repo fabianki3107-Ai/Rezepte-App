@@ -35,7 +35,7 @@ struct LibraryView: View {
                         }
                     }
                 }
-                .navigationDestination(for: Recipe.self) { recipe in
+                .navigationDestination(for: RecipeItem.self) { recipe in
                     RecipeDetailView(recipe: recipe)
                 }
         }
@@ -46,7 +46,7 @@ struct LibraryView: View {
 private struct FilteredRecipeList: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ImportCoordinator.self) private var importCoordinator
-    @Query private var recipes: [Recipe]
+    @Query private var recipes: [RecipeItem]
 
     private let searchText: String
     private let sortOrder: LibraryView.SortOrder
@@ -58,7 +58,7 @@ private struct FilteredRecipeList: View {
         self.favoritesOnly = favoritesOnly
 
         let trimmed = searchText.trimmingCharacters(in: .whitespaces)
-        let predicate: Predicate<Recipe>?
+        let predicate: Predicate<RecipeItem>?
         switch (trimmed.isEmpty, favoritesOnly) {
         case (true, false):
             predicate = nil
@@ -80,12 +80,12 @@ private struct FilteredRecipeList: View {
             }
         }
 
-        let sort: [SortDescriptor<Recipe>]
+        let sort: [SortDescriptor<RecipeItem>]
         switch sortOrder {
-        case .recentlyUpdated: sort = [SortDescriptor(\Recipe.updatedAt, order: .reverse)]
-        case .title: sort = [SortDescriptor(\Recipe.title, comparator: .localizedStandard)]
-        case .recentlyCooked: sort = [SortDescriptor(\Recipe.lastCookedAt, order: .reverse), SortDescriptor(\Recipe.updatedAt, order: .reverse)]
-        case .quickest: sort = [SortDescriptor(\Recipe.cookTimeMinutes), SortDescriptor(\Recipe.prepTimeMinutes)]
+        case .recentlyUpdated: sort = [SortDescriptor(\RecipeItem.updatedAt, order: .reverse)]
+        case .title: sort = [SortDescriptor(\RecipeItem.title, comparator: .localizedStandard)]
+        case .recentlyCooked: sort = [SortDescriptor(\RecipeItem.lastCookedAt, order: .reverse), SortDescriptor(\RecipeItem.updatedAt, order: .reverse)]
+        case .quickest: sort = [SortDescriptor(\RecipeItem.cookTimeMinutes), SortDescriptor(\RecipeItem.prepTimeMinutes)]
         }
         _recipes = Query(filter: predicate, sort: sort, animation: .default)
     }
@@ -135,7 +135,7 @@ private struct FilteredRecipeList: View {
         } actions: {
             if searchText.isEmpty {
                 Button("Beispielrezepte hinzufügen") {
-                    for recipe in Recipe.sampleRecipes() {
+                    for recipe in RecipeItem.sampleRecipes() {
                         modelContext.insert(recipe)
                     }
                     try? modelContext.save()

@@ -3,7 +3,8 @@
 ## Leitprinzipien
 
 1. **Local-First, Offline-Only.** Ein einziger lokaler SwiftData-Store, explizit ohne CloudKit. Es gibt keinen Backend-Code,
-   weil es kein Backend gibt. Die einzige Netzwerkoperation (Instagram-Open-Graph) ist optional und läuft Gerät → instagram.com.
+   weil es kein Backend gibt. Die einzige Netzwerkoperation (Open-Graph-Abruf) ist optional und läuft Gerät → Plattform.
+   Nährwerte kommen aus einer eingebauten Tabelle, Apple Health wird lokal beschrieben.
 2. **Werttypen für Logik, Referenztypen für Zustand.** Parsing, Skalierung und Formatierung arbeiten auf `struct`s
    (`Measure`, `ParsedRecipeDraft`, `StepTimer`) und sind ohne ModelContext testbar. SwiftData-Klassen sind reine Persistenz.
 3. **Eine Schreibstelle.** Views lesen über `@Query`, schreiben nur über `RecipeRepository`.
@@ -17,20 +18,24 @@
 │  Library · RecipeDetail · CookingMode · Import · Settings        │
 ├──────────────────────────────────────────────────────────────────┤
 │ Koordination / Zustand (@Observable, @MainActor)                 │
-│  ImportCoordinator · CookingSession · AppSettings                │
+│  ImportCoordinator · NutritionLogService · CookingSession        │
+│  AppSettings (Ziele, Health-Sync)                                │
 ├──────────────────────────────────────────────────────────────────┤
 │ Domänenlogik (reine Werttypen, testbar)                          │
 │  RecipeTextParser · IngredientLineParser · StepAnnotator         │
-│  ServingsScaler · QuantityFormatter · InstagramLinkParser        │
-│  OpenGraphParser                                                 │
+│  LocalNutritionParser · GramsEstimator · NutritionTextExtractor  │
+│  FoodDatabase · NutritionFacts · ServingsScaler                  │
+│  QuantityFormatter · SocialLinkParser · OpenGraphParser          │
 ├──────────────────────────────────────────────────────────────────┤
 │ Services                                                         │
-│  VisionOCRManager (actor) · InstagramCaptionFetcher (actor)      │
-│  RecipeRepository · ImageProcessing · TimerNotificationService   │
+│  VisionOCRManager (actor) · SocialCaptionFetcher (actor)         │
+│  HealthKitManager · RecipeRepository · ImageProcessing           │
+│  TimerNotificationService                                        │
 ├──────────────────────────────────────────────────────────────────┤
 │ Persistenz                                                       │
-│  SwiftData: Recipe ─< Ingredient, Recipe ─< CookingStep,         │
-│             Recipe >─< Tag · App-Group-Inbox (JSON + Bild)       │
+│  SwiftData: RecipeItem ─< Ingredient, RecipeItem ─< CookingStep, │
+│             RecipeItem >─< Tag, DailyLog ─< LogEntry ─ RecipeItem│
+│             App-Group-Inbox (JSON + Bild) · Apple Health (write) │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -38,7 +43,9 @@
 
 | Modell | Zweck | Besonderheiten |
 | --- | --- | --- |
-| `Recipe` | Rezeptkopf, Herkunft, Vertrauen, Bilder | Enums als `String`-Rohwerte (prädikatfähig), `heroImageData` in `.externalStorage`, `thumbnailData` klein im Store für flüssige Listen |
+| `RecipeItem` | Rezeptkopf, Herkunft, Vertrauen, Bilder, Nährwerte pro Portion | `caloriesPerServing`, `proteinGrams`, `carbsGrams`, `fatGrams`, `nutritionConfidence`, `nutritionSource`; Enums als `String`-Rohwerte, `heroImageData` in `.externalStorage`, `ingredientLines` / `instructions` als String-Sichten |
+| `DailyLog` | Ein Kalendertag mit denormalisierten Summen (`totalCalories`, `totalProtein`, `totalCarbs`, `totalFat`) | `dayStart` eindeutig; `consumedRecipes` leitet sich aus den Einträgen ab, damit ein Rezept mehrfach und mit Portionen vorkommen kann |
+| `LogEntry` | Geloggte Portion mit Nährwert-Snapshot, Mahlzeit, Health-Sync-Status | Snapshot schützt das Tagebuch vor späteren Rezeptänderungen; `nullify` beim Löschen des Rezepts |
 | `Ingredient` | Zutat mit strukturierter Menge | `quantity`/`quantityUpperBound` (Bereiche), `unit`, `group`, `isScalable`, `isOptional`; `sortIndex` für stabile Reihenfolge |
 | `CookingStep` | Schritt mit erkannter Dauer/Temperatur | Grundlage für Timer im Koch-Modus |
 | `Tag` | Schlagwort, dedupliziert über `@Attribute(.unique)` | Normalisierung in `Tag.normalized` |
@@ -97,21 +104,49 @@ Text/Share      ─► (direkt)
 
 Alle Heuristiken sind in `RezepteAppTests` abgedeckt; Erweiterungen sollten mit einem Beispiel dort starten.
 
-### Instagram-Link
+### Instagram-/TikTok-Link
 
-Instagram bietet keine serverlose API für Captions. Zwei Stufen:
+Keine der Plattformen bietet eine serverlose API für Captions. Zwei Stufen (`SocialLinkParser` erkennt Instagram-Beiträge,
+Reels, IGTV sowie TikTok-Videos und Kurzlinks `vm.`/`vt.`/`/t/`):
 
 1. **Direkt-Abruf** der öffentlichen Beitragsseite vom Gerät (ephemere `URLSession`, 12 s Timeout). Die Open-Graph-Tags
    `og:title`/`og:description` enthalten die Caption im Format `… on Instagram: "…"`. `OpenGraphParser` extrahiert sie
    per Regex und dekodiert Entities. Scheitert der Abruf (Login-Wand, offline), bleibt der Link als Quelle gespeichert.
 2. **Fallback:** Screenshot-OCR oder Einfügen der Caption. Die Share-Extension liefert beides aus der Instagram-App.
 
-Der Direkt-Abruf ist in den Einstellungen abschaltbar (`AppSettings.loadInstagramPreview`).
+Der Direkt-Abruf ist in den Einstellungen abschaltbar (`AppSettings.loadSocialPreview`).
 
 ### Share-Extension
 
 `ShareViewController` schreibt `ImportInboxItem` (JSON) plus optionales Bild atomar in den App-Group-Ordner.
 Die App leert den Eingang bei `scenePhase == .active` und startet den passenden Import. Kein IPC, kein Netzwerk.
+
+## Nährwert-Schätzung (`LocalNutritionParser`)
+
+```
+Zutaten (Name, Menge, Einheit) ──► FoodDatabase.match ──► FoodEntry (kcal/E/K/F pro 100 g, Dichte, Stückgewichte)
+                                 └► GramsEstimator ──► Gramm (lebensmittelspezifisch, sonst Küchen-Standards)
+                                                     ──► Summe / Portionen ──► NutritionEstimate (+ Konfidenz, Annahmen)
+Rezepttext mit "450 kcal · 30 g Eiweiß …" ──► NutritionTextExtractor ──► deklarierte Werte gewinnen (Konfidenz 0,95)
+```
+
+- **Matching:** Normalisierung (Umlaute, Füllwörter wie „frisch“, „gehackt“), Plural-/Flexionsabgleich, deutsche Komposita
+  („Basmatireis“ → Reis, „Knoblauchzehen“ → Knoblauch). Längere Aliase gewinnen („Tomatenmark“ vor „Tomaten“).
+- **Gramm-Umrechnung:** Gewicht direkt; Volumen über Dichte; Löffel/Tassen und Stück/Dose/Packung über lebensmittel-
+  spezifische Werte, sonst Standards (Stück 100 g, Dose 400 g, Zehe 3 g …). Bereiche nehmen die Mitte.
+- **Konfidenz:** Anteil der zugeordneten Masse, abgewertet um Annahmen (unbekanntes Lebensmittel, fehlende Menge bei
+  kalorienreichen Zutaten, Standard-Stückgewicht). Ab 0,7 Mint „Gute Schätzung“, darunter Orange „Grobe Schätzung“.
+- **Korrektur:** `NutritionEditSheet` setzt Werte manuell (`NutritionSource.manual`), „Neu schätzen“ überschreibt auf Wunsch.
+
+## Kalorien-Tagebuch & Apple Health
+
+- `NutritionLogService.log(recipe, servings:)` ist der 1-Tap-Pfad: `DailyLog` für den Tag holen/anlegen, `LogEntry`
+  mit Snapshot anlegen, Summen neu berechnen, speichern, Health-Sync anstoßen.
+- `HealthKitManager` schreibt pro Eintrag eine `HKCorrelation(.food)` mit vier Samples (Energie, Eiweiß, Kohlenhydrate, Fett).
+  `HKMetadataKeySyncIdentifier` + `HKMetadataKeySyncVersion` sorgen dafür, dass Portionsänderungen den alten Stand ersetzen;
+  Löschen entfernt über denselben Schlüssel. Es werden keine Lesezugriffe angefragt.
+- Das Dashboard liest `DailyLog` per `@Query` (Tag) bzw. für den Wochen-Chart die letzten sieben Tage; Ring und Balken nutzen
+  Swift Charts (`SectorMark`, `BarMark`, `RuleMark`) und `ProgressView`.
 
 ## Portionen-Skalierer
 
@@ -143,7 +178,7 @@ Dark Mode, erhöhter Kontrast und reduzierte Transparenz automatisch funktionier
 ## Testen
 
 Swift Testing (`import Testing`) für die reine Logik: Zutatenzeilen, Gesamt-Parser, Annotator, Formatierung,
-Skalierer, Instagram-Links, Open Graph. UI und OCR werden über Previews mit `RecipeSchemaV1.previewContainer()` geprüft.
+Skalierer, Lebensmittel-Matching, Gramm-Umrechnung, Nährwert-Schätzung, deklarierte Nährwerte, Instagram-/TikTok-Links, Open Graph. UI und OCR werden über Previews mit `RecipeSchemaV1.previewContainer()` geprüft.
 
 ## Erweiterungspunkte
 

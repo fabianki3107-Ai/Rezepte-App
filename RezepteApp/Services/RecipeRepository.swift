@@ -16,8 +16,8 @@ final class RecipeRepository {
     // MARK: - Anlegen aus Entwurf
 
     @discardableResult
-    func save(draft: ParsedRecipeDraft) throws -> Recipe {
-        let recipe = Recipe(
+    func save(draft: ParsedRecipeDraft) throws -> RecipeItem {
+        let recipe = RecipeItem(
             title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
             summary: draft.summary?.nilIfBlank,
             servings: draft.servings ?? 4,
@@ -56,48 +56,70 @@ final class RecipeRepository {
         }
         recipe.tags = try draft.tags.map { try tag(named: $0) }
 
+        // Lokale Nährwert-Schätzung direkt beim Import – deklarierte Werte im Text haben Vorrang.
+        let estimate = LocalNutritionParser.estimate(draft: draft)
+        if estimate.isUsable {
+            recipe.applyNutrition(estimate.perServing, confidence: estimate.confidence, source: estimate.source)
+        }
+
         try context.save()
         return recipe
     }
 
+    /// Schätzung erneut ausführen, z. B. nach geänderten Zutaten. Manuelle Werte werden nur auf Wunsch überschrieben.
+    @discardableResult
+    func recalculateNutrition(_ recipe: RecipeItem, overrideManual: Bool = false) throws -> NutritionEstimate {
+        let estimate = LocalNutritionParser.estimate(recipe: recipe)
+        if recipe.nutritionSource != .manual || overrideManual {
+            recipe.applyNutrition(estimate.perServing, confidence: estimate.confidence, source: estimate.source)
+            try update(recipe)
+        }
+        return estimate
+    }
+
+    func setManualNutrition(_ recipe: RecipeItem, facts: NutritionFacts) throws {
+        recipe.applyNutrition(facts, confidence: 1, source: .manual)
+        try update(recipe)
+    }
+
     // MARK: - Mutationen
 
-    func update(_ recipe: Recipe) throws {
+    func update(_ recipe: RecipeItem) throws {
         recipe.touch()
         try context.save()
     }
 
-    func toggleFavorite(_ recipe: Recipe) throws {
+    func toggleFavorite(_ recipe: RecipeItem) throws {
         recipe.isFavorite.toggle()
         try update(recipe)
     }
 
-    func markVerified(_ recipe: Recipe) throws {
+    func markVerified(_ recipe: RecipeItem) throws {
         if recipe.verification == .unverified {
             recipe.verification = .userVerified
         }
         try update(recipe)
     }
 
-    func markCooked(_ recipe: Recipe, at date: Date = .now) throws {
+    func markCooked(_ recipe: RecipeItem, at date: Date = .now) throws {
         recipe.lastCookedAt = date
         recipe.verification = .cooked
         try update(recipe)
     }
 
-    func replaceHeroImage(_ recipe: Recipe, with data: Data?) throws {
+    func replaceHeroImage(_ recipe: RecipeItem, with data: Data?) throws {
         recipe.heroImageData = data
         recipe.thumbnailData = data.flatMap { ImageProcessing.thumbnailData(from: $0) }
         try update(recipe)
     }
 
-    func delete(_ recipe: Recipe) throws {
+    func delete(_ recipe: RecipeItem) throws {
         context.delete(recipe)
         try context.save()
     }
 
     func deleteAll() throws {
-        try context.delete(model: Recipe.self)
+        try context.delete(model: RecipeItem.self)
         try context.delete(model: Tag.self)
         try context.save()
     }
@@ -120,7 +142,7 @@ final class RecipeRepository {
 
     /// JSON-Export aller Rezepte, z. B. für Backups über die Dateien-App. Kein Upload.
     func exportJSON() throws -> Data {
-        let recipes = try context.fetch(FetchDescriptor<Recipe>(sortBy: [SortDescriptor(\.title)]))
+        let recipes = try context.fetch(FetchDescriptor<RecipeItem>(sortBy: [SortDescriptor(\.title)]))
         let payload = RecipeExport(exportedAt: .now, recipes: recipes.map(RecipeExport.Entry.init))
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -147,6 +169,11 @@ struct RecipeExport: Codable {
         var sourceURL: URL?
         var sourceAuthor: String?
         var tags: [String]
+        var caloriesPerServing: Int
+        var proteinGrams: Double
+        var carbsGrams: Double
+        var fatGrams: Double
+        var nutritionSource: String
         var ingredients: [IngredientEntry]
         var steps: [StepEntry]
 
@@ -168,7 +195,7 @@ struct RecipeExport: Codable {
         }
 
         @MainActor
-        init(_ recipe: Recipe) {
+        init(_ recipe: RecipeItem) {
             title = recipe.title
             summary = recipe.summary
             notes = recipe.notes
@@ -180,6 +207,11 @@ struct RecipeExport: Codable {
             sourceURL = recipe.sourceURL
             sourceAuthor = recipe.sourceAuthor
             tags = recipe.tags.map(\.name).sorted()
+            caloriesPerServing = recipe.caloriesPerServing
+            proteinGrams = recipe.proteinGrams
+            carbsGrams = recipe.carbsGrams
+            fatGrams = recipe.fatGrams
+            nutritionSource = recipe.nutritionSourceRaw
             ingredients = recipe.sortedIngredients.map {
                 IngredientEntry(name: $0.name, quantity: $0.quantity, quantityUpperBound: $0.quantityUpperBound,
                                 unit: $0.unitRaw, note: $0.note, group: $0.group,

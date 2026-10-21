@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Listenzeile der Bibliothek: Thumbnail, Titel, Metadaten und Vertrauens-Badge.
 struct RecipeCardView: View {
-    let recipe: Recipe
+    let recipe: RecipeItem
 
     var body: some View {
         HStack(spacing: AppTheme.Spacing.m) {
@@ -20,6 +20,9 @@ struct RecipeCardView: View {
                         Label("\(total) Min", systemImage: "clock")
                     }
                     Label("\(recipe.servings)", systemImage: "person.2")
+                    if recipe.hasNutrition {
+                        Label("\(recipe.caloriesPerServing) kcal", systemImage: "flame")
+                    }
                     Label(recipe.source.kind.title, systemImage: recipe.source.kind.symbolName)
                         .labelStyle(.iconOnly)
                 }
@@ -61,8 +64,8 @@ struct RecipeCardView: View {
 
 #Preview {
     List {
-        RecipeCardView(recipe: Recipe.sampleShakshuka())
-        RecipeCardView(recipe: Recipe.samplePancakes())
+        RecipeCardView(recipe: RecipeItem.sampleShakshuka())
+        RecipeCardView(recipe: RecipeItem.samplePancakes())
     }
     .scrollContentBackground(.hidden)
     .background(AppTheme.background)

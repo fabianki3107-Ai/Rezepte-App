@@ -1,19 +1,25 @@
-# Rezepte – Local-First Rezept-App für iOS
+# Rezepte – Local-First Rezept-Import & Kalorien-Tracker für iOS
 
-Eine blitzschnelle, komplett offline arbeitende Rezept-App in SwiftUI + SwiftData.
-Rezepte werden per **Screenshot/Foto (Apple Vision OCR)**, **Instagram-Link** oder Text importiert,
-in einer sauberen Bibliothek verwaltet und über einen **ablenkungsfreien Koch-Modus** gekocht.
+Eine blitzschnelle, komplett offline arbeitende 2-in-1-App in SwiftUI + SwiftData:
+Rezepte werden per **Screenshot/Foto (Apple Vision OCR)**, **Instagram-/TikTok-Link** oder Text importiert,
+die **Nährwerte pro Portion lokal geschätzt**, mit **einem Tap ins Kalorien-Tagebuch** geloggt und
+optional in **Apple Health** geschrieben. Gekocht wird über einen ablenkungsfreien Koch-Modus.
 
 - 100 % On-Device: keine Cloud, kein Konto, keine Serverkosten (`cloudKitDatabase: .none`)
-- Apple-natives Design nach HIG: `systemGroupedBackground`, `systemBlue` für Interaktion, `systemMint` für Vertrauens-Badges
-- iOS 17+, Swift 5.10, Xcode 16+
+- Apple-natives Design nach HIG: `systemGroupedBackground`, `systemBlue` für Interaktion, `systemMint` für Vertrauens-Badges,
+  Kalorienring und Makro-Balken mit Swift Charts / `ProgressView`
+- iOS 17+, Swift 5, Xcode 16+
 
 ## Features
 
 | Bereich | Umsetzung |
 | --- | --- |
 | Import Screenshot/Foto | `VisionOCRManager` (VNRecognizeTextRequest, `.accurate`, de/en), Zeilen-Rekonstruktion in Leserichtung |
-| Import Instagram-Link | `InstagramLinkParser` (Beitrag/Reel/IGTV, Tracking-Parameter entfernt) + optionaler Open-Graph-Abruf **direkt vom Gerät** |
+| Import Instagram-/TikTok-Link | `SocialLinkParser` (Instagram Beitrag/Reel/IGTV, TikTok Video/Kurzlink) + optionaler Open-Graph-Abruf **direkt vom Gerät** |
+| Nährwert-Schätzung | `LocalNutritionParser`: Zutaten → lokale `FoodDatabase` (170+ Lebensmittel) → Gramm → kcal/Eiweiß/KH/Fett pro Portion, deklarierte Werte im Text haben Vorrang |
+| Kalorien-Tagebuch | `NutritionLogService`: 1-Tap-Log aus dem Rezept, Portionen anpassen, `DailyLog`/`LogEntry` mit Snapshot |
+| Dashboard | `DashboardView`: Kalorienring (`SectorMark`), Makro-Balken, 7-Tage-Chart, heutige Einträge |
+| Apple Health | `HealthKitManager`: Energie + Makros als `HKCorrelation(.food)`, Update/Löschen über Sync-Identifier |
 | Share-Extension | Link, Text oder Bild aus jeder App „In Rezepte sichern“; Übergabe über App-Group-Inbox |
 | Parser | `RecipeTextParser` erkennt Titel, Portionen, Zeiten, Zutaten-Gruppen, Schritte, Timer, Temperaturen, Tags |
 | Review | `ImportReviewView`: alle Felder editierbar, Warnungen, OCR-Konfidenz-Badge, Originaltext einsehbar |
@@ -38,6 +44,7 @@ Danach in Xcode:
 1. Unter *Signing & Capabilities* für **RezepteApp** und **RezepteShareExtension** dein Team wählen.
 2. Die App Group `group.de.fabian.rezepte` (siehe `ImportInbox.appGroupIdentifier`) in beiden Targets aktivieren,
    oder den Identifier in `project.yml` und `ImportInboxItem.swift` an deine Team-ID anpassen.
+   Die HealthKit-Capability ist in `project.yml` hinterlegt; sie braucht ein bezahltes Developer-Team.
 3. Schema **RezepteApp** auf einem Gerät oder Simulator starten (⌘R), Tests mit ⌘U.
 
 Alternative ohne XcodeGen: Neues iOS-App-Projekt „RezepteApp“ (SwiftUI, SwiftData) anlegen, den Ordner `RezepteApp/`
@@ -49,31 +56,36 @@ als Gruppe hinzufügen, Share-Extension-Target anlegen und `RezepteShareExtensio
 ```
 RezepteApp/
 ├── App/            Einstieg, Tab-Navigation, Design-Tokens (AppTheme)
-├── Models/         SwiftData-Modelle, Einheiten, Mengen-Formatierung, Skalierer, Beispieldaten
+├── Models/         SwiftData-Modelle (RecipeItem, Ingredient, CookingStep, Tag, DailyLog, LogEntry), Einheiten, Skalierer
+│   └── Nutrition/  NutritionFacts, Macro, NutritionGoals, NutritionSource
+├── Nutrition/      FoodDatabase (lokal), LocalNutritionParser, GramsEstimator, NutritionTextExtractor
 ├── Import/
 │   ├── OCR/        VisionOCRManager
 │   ├── Parsing/    RecipeTextParser, IngredientLineParser, StepAnnotator, ParsedRecipeDraft
-│   ├── Instagram/  InstagramLinkParser, InstagramCaptionFetcher (Open Graph)
+│   ├── Instagram/  InstagramLinkParser, TikTokLinkParser, SocialLinkParser, SocialCaptionFetcher (Open Graph)
 │   ├── Inbox/      App-Group-Austausch mit der Share-Extension
 │   └── ImportCoordinator.swift
 ├── Features/
+│   ├── Dashboard/  DashboardView, CalorieRingView, MacroBarsView, WeeklyCaloriesChart, LogEntryRow
 │   ├── Library/    LibraryView, RecipeCardView, TrustBadgeView
-│   ├── RecipeDetail/ RecipeDetailView, ServingsScalerView, IngredientRowView
+│   ├── RecipeDetail/ RecipeDetailView, NutritionCardsView, NutritionEditSheet, ServingsScalerView, IngredientRowView
 │   ├── CookingMode/  CookingSession, CookingModeView (Timer, Zutaten-Sheet, Abschluss)
 │   ├── Import/     ImportHubView, ImportReviewView, ImagePickers
 │   └── Settings/   SettingsView
-├── Services/       RecipeRepository, ImageProcessing, TimerNotificationService, AppSettings
+├── Services/       RecipeRepository, NutritionLogService, HealthKitManager, ImageProcessing, TimerNotificationService, AppSettings
 ├── Extensions/     Regex-/String-Hilfen
 └── Resources/      Assets (AccentColor = systemBlue)
 RezepteShareExtension/  ShareViewController
-RezepteAppTests/        Swift-Testing-Suites für Parser, Formatierung, Instagram-Links
+RezepteAppTests/        Swift-Testing-Suites für Parser, Nährwert-Schätzung, Formatierung, Instagram-/TikTok-Links
 ```
 
 ## Datenschutz-Modell
 
 - Alle Rezepte, Bilder und Einstellungen liegen ausschließlich im App-Sandbox-Container.
 - Texterkennung läuft mit Apple Vision auf dem Gerät.
-- Die einzige Netzwerkfunktion ist der optionale Abruf der öffentlichen Instagram-Beitragsseite **direkt von instagram.com**
+- Nährwerte werden aus einer eingebauten Lebensmittel-Tabelle geschätzt – keine Food-API, kein Upload von Zutaten.
+- Apple Health wird nur beschrieben (Ernährungsdaten), nie gelesen; die Option ist standardmäßig aus.
+- Die einzige Netzwerkfunktion ist der optionale Abruf der öffentlichen Beitragsseite **direkt von instagram.com / tiktok.com**
   (wie ein Browser, ephemere Session ohne Cookies). Sie lässt sich in den Einstellungen abschalten; dann wird der Link nur
   als Quelle gespeichert und der Inhalt kommt per Screenshot oder Einfügen.
 - Kein Analytics, keine Crash-Reporter, keine Drittanbieter-SDKs.
