@@ -30,7 +30,7 @@ struct ImportInboxItem: Codable, Identifiable, Hashable {
 
 enum ImportInbox {
     /// Muss mit den Entitlements beider Targets übereinstimmen.
-    static let appGroupIdentifier = "group.io.github.fabianki3107.kochlog"
+    static let appGroupIdentifier = "group.de.fabian.rezepte"
     static let directoryName = "ImportInbox"
 
     static var directory: URL? {

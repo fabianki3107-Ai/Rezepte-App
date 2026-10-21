@@ -111,7 +111,7 @@ final class ShareViewController: UIViewController {
             if success {
                 self?.extensionContext?.completeRequest(returningItems: nil)
             } else {
-                self?.extensionContext?.cancelRequest(withError: NSError(domain: "io.github.fabianki3107.kochlog.share", code: 1))
+                self?.extensionContext?.cancelRequest(withError: NSError(domain: "de.fabian.rezepte.app.share", code: 1))
             }
         }
     }

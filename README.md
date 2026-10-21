@@ -42,7 +42,7 @@ open Kochlog.xcodeproj
 Danach in Xcode:
 
 1. Unter *Signing & Capabilities* für **Kochlog** und **KochlogShareExtension** dein Team wählen.
-2. Die App Group `group.io.github.fabianki3107.kochlog` (siehe `ImportInbox.appGroupIdentifier`) in beiden Targets aktivieren,
+2. Die App Group `group.de.fabian.rezepte` (siehe `ImportInbox.appGroupIdentifier`) in beiden Targets aktivieren,
    oder den Identifier in `project.yml` und `ImportInboxItem.swift` an deine Team-ID anpassen.
    Die HealthKit-Capability ist in `project.yml` hinterlegt; sie braucht ein bezahltes Developer-Team.
 3. Schema **Kochlog** auf einem Gerät oder Simulator starten (⌘R), Tests mit ⌘U.
@@ -91,3 +91,21 @@ KochlogTests/        Swift-Testing-Suites für Parser, Nährwert-Schätzung, For
 - Kein Analytics, keine Crash-Reporter, keine Drittanbieter-SDKs.
 
 Details zur Architektur und zu den Entscheidungen: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## TestFlight
+
+Der Workflow `.github/workflows/testflight.yml` baut die App auf einem macOS-Runner und lädt sie nach TestFlight hoch.
+Er startet nur manuell über **Actions → TestFlight → Run workflow**.
+
+Vorher einmalig nötig:
+
+1. Mitgliedschaft im Apple Developer Program und die Team-ID notieren.
+2. In App Store Connect eine App mit der Bundle-ID `de.fabian.rezepte.app` und dem Namen Kochlog anlegen. Ohne diesen Datensatz lehnt Apple den Upload ab.
+3. Unter Users and Access → Integrations → Team Keys einen API-Schlüssel mit der Rolle App Manager erzeugen. Die `.p8`-Datei lässt sich nur einmal herunterladen.
+4. In den GitHub-Repository-Secrets diese Werte hinterlegen:
+   - `APPLE_TEAM_ID`: die Team-ID
+   - `ASC_KEY_ID`: die Key-ID des API-Schlüssels
+   - `ASC_ISSUER_ID`: die Issuer-ID aus derselben Seite
+   - `ASC_KEY_P8_BASE64`: der Inhalt der `.p8`-Datei, base64-kodiert (`base64 -i AuthKey_XXXX.p8`)
+
+Die Build-Nummer ist die GitHub-Run-Nummer, die Version steht in `project.yml` (`MARKETING_VERSION`).
